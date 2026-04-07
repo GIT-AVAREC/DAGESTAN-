@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smska</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#075e54">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Smska">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #e5ddd5; height: 100vh; overflow: hidden; }
+        .app { display: flex; height: 100vh; background: white; }
+        .sidebar { width: 35%; border-right: 1px solid #ddd; display: flex; flex-direction: column; background: white; }
+        .header { background: #075e54; color: white; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; }
+        .search-bar { padding: 8px; background: #f6f6f6; border-bottom: 1px solid #ddd; }
+        .search-bar input { width: 100%; padding: 10px 15px; border: none; border-radius: 8px; outline: none; background: #fff; }
+        .chat-list { flex: 1; overflow-y: auto; }
+        .chat-item { display: flex; padding: 12px 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+        .chat-item:hover { background: #f5f5f5; }
+        .chat-item.active { background: #e9f7ef; }
+        .avatar { width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, #128c7e, #075e54); margin-right: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; flex-shrink: 0; }
+        .chat-info { flex: 1; min-width: 0; }
+        .chat-name { font-weight: 600; margin-bottom: 3px; font-size: 15px; }
+        .last-message { color: #666; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-area { width: 65%; display: flex; flex-direction: column; background: #e5ddd5; }
+        .chat-header { background: #f0f0f0; padding: 10px 15px; border-bottom: 1px solid #ddd; display: flex; align-items: center; }
+        .messages { flex: 1; padding: 15px; overflow-y: auto; background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect fill="%23e5ddd5" width="400" height="400"/><path d="M200 0L400 200L200 400L0 200Z" fill="%23dcdcdc" opacity="0.3"/></svg>'); }
+        .message { margin-bottom: 10px; display: flex; }
+        .message.sent { justify-content: flex-end; }
+        .message.received { justify-content: flex-start; }
+        .message-bubble { max-width: 70%; padding: 8px 12px; border-radius: 12px; word-wrap: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-size: 14px; line-height: 1.4; }
+        .message.sent .message-bubble { background: #dcf8c6; border-top-right-radius: 4px; }
+        .message.received .message-bubble { background: white; border-top-left-radius: 4px; }
+        .message-time { font-size: 10px; color: #999; margin-top: 4px; text-align: right; }
+        .message-input-area { padding: 10px 15px; background: #f0f0f0; display: flex; align-items: center; gap: 10px; }
+        .message-input { flex: 1; padding: 10px 15px; border: none; border-radius: 20px; outline: none; font-size: 14px; background: white; }
+        .send-btn { background: #075e54; color: white; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .auth-screen { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #075e54, #128c7e); padding: 20px; }
+        .auth-box { background: white; padding: 30px 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.25); width: 100%; max-width: 350px; }
+        .auth-box h2 { text-align: center; margin-bottom: 25px; color: #075e54; font-size: 24px; }        .auth-box input { width: 100%; padding: 12px 15px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        .auth-box button { width: 100%; padding: 12px; background: #075e54; color: white; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; margin-top: 8px; font-weight: 500; }
+        .auth-box button.secondary { background: #128c7e; }
+        .hidden { display: none !important; }
+        .back-btn { display: none; background: none; border: none; color: white; font-size: 20px; margin-right: 10px; cursor: pointer; }
+        
+        @media (max-width: 768px) {
+            .sidebar { width: 100%; position: absolute; z-index: 10; }
+            .sidebar.hidden { display: none; }
+            .chat-area { width: 100%; position: absolute; z-index: 20; }
+            .chat-area.hidden { display: none; }
+            .back-btn { display: block; }
+            .message-bubble { max-width: 85%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-box">
+            <h2><i class="fab fa-whatsapp"></i> Smska</h2>
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="password" placeholder="Пароль (мин. 6 символов)">
+            <button onclick="login()">Войти</button>
+            <button onclick="register()" class="secondary">Создать аккаунт</button>
+        </div>
+    </div>
+
+    <div id="app" class="app hidden">
+        <div class="sidebar" id="sidebar">
+            <div class="header">
+                <h3><i class="fab fa-whatsapp"></i> Smska</h3>
+                <div>
+                    <i class="fas fa-users" style="margin-right: 18px; cursor: pointer;" onclick="createChat()"></i>
+                    <i class="fas fa-sign-out-alt" style="cursor: pointer;" onclick="logout()"></i>
+                </div>
+            </div>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Поиск..." oninput="searchChats()">
+            </div>
+            <div class="chat-list" id="chatList"></div>
+        </div>
+
+        <div class="chat-area hidden" id="chatArea">
+            <div class="chat-header">
+                <button class="back-btn" onclick="backToChats()"><i class="fas fa-arrow-left"></i></button>
+                <div class="avatar" id="chatAvatar">?</div>
+                <div>
+                    <div class="chat-name" id="chatName">Чат</div>
+                    <div style="font-size: 11px; color: #666;">онлайн</div>
+                </div>            </div>
+            <div class="messages" id="messages"></div>
+            <div class="message-input-area">
+                <input type="text" class="message-input" id="messageInput" placeholder="Сообщение..." onkeypress="handleKeyPress(event)">
+                <button class="send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyBppttXdUhZ-BVV3XRyhaPMyWW_Lch2Jes",
+          authDomain: "dddd-8e287.firebaseapp.com",
+          projectId: "dddd-8e287",
+          storageBucket: "dddd-8e287.firebasestorage.app",
+          messagingSenderId: "678020145717",
+          appId: "1:678020145717:web:19bf8867df347a22cc477c"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let currentUser = null, currentChat = null, currentChatName = '';
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('authScreen').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                loadChats();
+                updateUserStatus(true);
+            } else {
+                document.getElementById('authScreen').classList.remove('hidden');
+                document.getElementById('app').classList.add('hidden');
+            }
+        });
+
+        function login() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            if (!email || !password) { alert('Введите email и пароль'); return; }
+            auth.signInWithEmailAndPassword(email, password).catch(e => alert('Ошибка: ' + e.message));
+        }
+
+        function register() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            if (!email || !password) { alert('Введите email и пароль'); return; }
+            if (password.length < 6) { alert('Пароль мин. 6 символов'); return; }            auth.createUserWithEmailAndPassword(email, password)
+                .then(() => db.collection('users').doc(auth.currentUser.uid).set({
+                    email, name: email.split('@')[0], createdAt: firebase.firestore.FieldValue.serverTimestamp(), status: 'онлайн'
+                }))
+                .catch(e => alert('Ошибка: ' + e.message));
+        }
+
+        function logout() {
+            if (confirm('Выйти?')) { updateUserStatus(false); auth.signOut(); }
+        }
+
+        function updateUserStatus(online) {
+            if (currentUser) db.collection('users').doc(currentUser.uid).update({
+                status: online ? 'онлайн' : 'офлайн', lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(() => {});
+        }
+
+        function loadChats() {
+            db.collection('chats').where('participants', 'array-contains', currentUser.uid)
+                .orderBy('lastMessageTime', 'desc')
+                .onSnapshot(snapshot => {
+                    const list = document.getElementById('chatList');
+                    list.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const chat = doc.data();
+                        const otherId = chat.participants.find(id => id !== currentUser.uid);
+                        if (otherId) {
+                            db.collection('users').doc(otherId).get().then(userDoc => {
+                                const u = userDoc.exists ? userDoc.data() : { name: 'Пользователь' };
+                                const item = document.createElement('div');
+                                item.className = 'chat-item' + (currentChat === doc.id ? ' active' : '');
+                                item.innerHTML = `<div class="avatar">${u.name.charAt(0).toUpperCase()}</div>
+                                    <div class="chat-info"><div class="chat-name">${u.name}</div>
+                                    <div class="last-message">${chat.lastMessage || 'Нет сообщений'}</div></div>`;
+                                item.onclick = () => openChat(doc.id, u.name, item);
+                                list.appendChild(item);
+                            }).catch(() => {});
+                        }
+                    });
+                }, e => console.error(e));
+        }
+
+        function openChat(chatId, name, el) {
+            currentChat = chatId; currentChatName = name;
+            document.getElementById('chatName').textContent = name;
+            document.getElementById('chatAvatar').textContent = name.charAt(0).toUpperCase();
+            document.querySelectorAll('.chat-item').forEach(i => i.classList.remove('active'));
+            if (el) el.classList.add('active');
+            loadMessages(chatId);
+            if (window.innerWidth <= 768) {                document.getElementById('sidebar').classList.add('hidden');
+                document.getElementById('chatArea').classList.remove('hidden');
+            }
+        }
+
+        function backToChats() {
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('hidden');
+                document.getElementById('chatArea').classList.add('hidden');
+            }
+        }
+
+        function loadMessages(chatId) {
+            db.collection('messages').where('chatId', '==', chatId)
+                .orderBy('timestamp', 'asc').onSnapshot(snapshot => {
+                    const div = document.getElementById('messages');
+                    div.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const m = doc.data();
+                        const time = m.timestamp ? new Date(m.timestamp.toDate()).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'}) : '';
+                        const bubble = document.createElement('div');
+                        bubble.className = `message ${m.senderId === currentUser.uid ? 'sent' : 'received'}`;
+                        bubble.innerHTML = `<div class="message-bubble">${m.text}<div class="message-time">${time}</div></div>`;
+                        div.appendChild(bubble);
+                    });
+                    div.scrollTop = div.scrollHeight;
+                }, e => console.error(e));
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text || !currentChat) return;
+            db.collection('messages').add({
+                chatId: currentChat, senderId: currentUser.uid, text,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(), read: false
+            }).then(() => db.collection('chats').doc(currentChat).update({
+                lastMessage: text, lastMessageTime: firebase.firestore.FieldValue.serverTimestamp()
+            })).catch(e => console.error(e));
+            input.value = '';
+            input.focus();
+        }
+
+        function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
+
+        function createChat() {
+            const name = prompt('Имя чата:'); if (!name) return;
+            const email = prompt('Email участника:'); if (!email) return;
+            db.collection('users').where('email', '==', email.trim()).get().then(snapshot => {
+                if (snapshot.empty) { alert('Пользователь не найден'); return; }                const otherId = snapshot.docs[0].id;
+                db.collection('chats').add({
+                    participants: [currentUser.uid, otherId], groupName: name,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(), lastMessage: '', createdBy: currentUser.uid
+                });
+            }).catch(e => alert('Ошибка: ' + e.message));
+        }
+
+        function searchChats() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            document.querySelectorAll('.chat-item').forEach(item => {
+                const name = item.querySelector('.chat-name').textContent.toLowerCase();
+                item.style.display = name.includes(term) ? 'flex' : 'none';
+            });
+        }
+
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+    </script>
+</body>
+</html>
